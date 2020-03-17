@@ -25,6 +25,7 @@ func init() {
 	investCmd.PersistentFlags().StringVar(&EndDate, "end", "2020-01-01", "end date")
 
 	rootCmd.AddCommand(investCmd)
+	rootCmd.AddCommand(serverCmd)
 }
 
 // Execute is the entry point for the cobra app
