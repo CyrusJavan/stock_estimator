@@ -1,11 +1,14 @@
 package server
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
+	"github.com/CyrusJavan/stock_estimator/simulation"
 	"github.com/gorilla/mux"
 )
 
@@ -20,13 +23,22 @@ func NewAPIServer() APIServer {
 // StartServer starts the server
 func (s APIServer) StartServer() {
 	r := mux.NewRouter()
+
 	r.Use(loggingMiddleware)
-	r.HandleFunc("/invest", investHandler)
+
+	r.HandleFunc("/invest/{stock}/", investHandler).
+		Queries(
+			"principal", "{principal:[0-9]+}",
+			"recurring", "{recurring:[0-9]+}",
+			"start", "{start:[0-9]{4}-[0-9]{2}-[0-9]{2}}",
+			"end", "{end:[0-9]{4}-[0-9]{2}-[0-9]{2}}")
+
 	http.Handle("/", r)
+	addr := "0.0.0.0"
 	port := "8000"
 	srv := &http.Server{
 		Handler:      r,
-		Addr:         "127.0.0.1:" + port,
+		Addr:         fmt.Sprintf("%s:%s", addr, port),
 		WriteTimeout: 15 * time.Second,
 		ReadTimeout:  15 * time.Second,
 	}
@@ -35,8 +47,65 @@ func (s APIServer) StartServer() {
 }
 
 func investHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	if !validStock(vars["stock"]) {
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte(fmt.Sprintf("invalid stock name: %s", vars["stock"])))
+		return
+	}
+	sim, err := simulation.NewSimulation(stockNameToDataFile(vars["stock"]))
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	principal, err := strconv.ParseFloat(vars["principal"], 64)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	recurringInvestment, err := strconv.ParseFloat(vars["recurring"], 64)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+
+	worth, invested := sim.InvestOverTime(
+		vars["start"],
+		vars["end"],
+		principal,
+		recurringInvestment,
+	)
+
+	type investResponse struct {
+		Worth    float64 `json:"worth"`
+		Invested float64 `json:"invested"`
+	}
+
+	resp, err := json.Marshal(investResponse{
+		worth,
+		invested,
+	})
+
+	w.Header().Add("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
-	fmt.Fprintf(w, "Hi!")
+	w.Write(resp)
+}
+
+func stockNameToDataFile(name string) string {
+	nameToFile := map[string]string{
+		"djia": "data/DJI.csv",
+	}
+
+	return nameToFile[name]
+}
+
+func validStock(name string) bool {
+	if name != "djia" {
+		return false
+	}
+	return true
 }
 
 func loggingMiddleware(next http.Handler) http.Handler {

@@ -29,7 +29,11 @@ var (
 )
 
 func invest(cmd *cobra.Command, args []string) {
-	sim := simulation.NewSimulation("data/DJI.csv")
+	sim, err := simulation.NewSimulation("data/DJI.csv")
+
+	if err != nil {
+		panic(err)
+	}
 
 	worth, invested := sim.InvestOverTime(
 		StartDate,

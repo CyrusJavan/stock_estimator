@@ -18,10 +18,10 @@ type Simulation struct {
 }
 
 // NewSimulation makes a new simulation based on the data file
-func NewSimulation(dataFile string) Simulation {
+func NewSimulation(dataFile string) (*Simulation, error) {
 	f, err := os.Open(dataFile)
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	r := csv.NewReader(f)
 	s := stock{}
@@ -33,24 +33,24 @@ func NewSimulation(dataFile string) Simulation {
 			break
 		}
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		// Reference time: Mon Jan 2 15:04:05 -0700 MST 2006
 		val, err := strconv.ParseFloat(line[1], 32)
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		d, err := time.Parse(timeFormat, line[0])
 		if err != nil {
-			panic(err)
+			return nil, err
 		}
 		s.prices = append(s.prices, price{val, d})
 	}
-	return Simulation{s}
+	return &Simulation{s}, nil
 }
 
 // InvestOverTime returns the amount of money earned and amount invested
-func (s Simulation) InvestOverTime(
+func (s *Simulation) InvestOverTime(
 	startDate,
 	endDate string,
 	principal,
